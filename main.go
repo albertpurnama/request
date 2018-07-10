@@ -1,10 +1,12 @@
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
 
+	"github.com/btcsuite/btcd/btcec"
 	"github.com/parnurzeal/gorequest"
 )
 
@@ -28,14 +30,19 @@ func main() {
 		Send(CreatePartiallyFilledTX(BETH_ADDR, BETH_ADDR_TWO, 1)).
 		End()
 
-	if resp.StatusCode != 200 || resp.StatusCode != 201 {
+	if resp.StatusCode != 200 && resp.StatusCode != 201 {
 		log.Fatal(body)
 		return
 	}
+	json.Unmarshal([]byte(body), &dat)
+	fmt.Println(dat["tosign"].([]interface{})[0])
 
-	fmt.Println(body)
-	json.Unmarshal([]byte(body), dat)
-	fmt.Println(dat)
+	str, err := Sign(BETH_PRIVATE, dat["tosign"].([]interface{})[0].(string))
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+	fmt.Println(str)
 
 	// // faucet
 	// resp, body, _ := request.Post(FAUCET_URL).
@@ -56,6 +63,25 @@ func main() {
 	// 	return
 	// }
 	// fmt.Println(body)
+}
+
+func Sign(private string, data string) (str string, err error) {
+	dat, err := hex.DecodeString(data)
+	if err != nil {
+		return str, err
+	}
+
+	priv, err := hex.DecodeString(private)
+	if err != nil {
+		return str, err
+	}
+
+	privKey, _ := btcec.PrivKeyFromBytes(btcec.S256(), priv)
+	sig, err := privKey.Sign(dat)
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(sig.Serialize()), nil
 }
 
 // GetETHBalanceURL create the URL for getting Ethereum balance
